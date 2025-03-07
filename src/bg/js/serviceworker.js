@@ -1,11 +1,11 @@
-/* global Ankiconnect, Ankiweb, Deinflector, Builtin, Agent, optionsLoad, optionsSave */
-class ODHBack {
+/* global Ankiconnect, Deinflector, Builtin, Agent, optionsLoad, optionsSave */
+class ODHServiceworker {
     constructor() {
-        this.audios = {};
+
         this.options = null;
 
         this.ankiconnect = new Ankiconnect();
-        this.ankiweb = new Ankiweb();
+        //this.ankiweb = new Ankiweb();
         this.target = null;
 
         //setup lemmatizer
@@ -16,15 +16,11 @@ class ODHBack {
         this.builtin = new Builtin();
         this.builtin.loadData();
 
-        this.agent = new Agent(document.getElementById('sandbox').contentWindow);
-
         chrome.runtime.onMessage.addListener(this.onMessage.bind(this));
-        window.addEventListener('message', e => this.onSandboxMessage(e));
         chrome.runtime.onInstalled.addListener(this.onInstalled.bind(this));
         chrome.tabs.onCreated.addListener((tab) => this.onTabReady(tab.id));
         chrome.tabs.onUpdated.addListener(this.onTabReady.bind(this));
         chrome.commands.onCommand.addListener((command) => this.onCommand(command));
-
     }
 
     onCommand(command) {
@@ -36,31 +32,39 @@ class ODHBack {
 
     onInstalled(details) {
         if (details.reason === 'install') {
-            chrome.tabs.create({ url: chrome.extension.getURL('bg/guide.html') });
+            chrome.tabs.create({ url: chrome.runtime.getURL('bg/guide.html') });
             return;
         }
         if (details.reason === 'update') {
-            chrome.tabs.create({ url: chrome.extension.getURL('bg/update.html') });
+            chrome.tabs.create({ url: chrome.runtime.getURL('bg/update.html') });
             return;
         }
     }
 
     onTabReady(tabId) {
-        this.tabInvoke(tabId, 'setFrontendOptions', { options: this.options });
+        this.tabInvoke(tabId, {
+            action:'setFrontendOptions', 
+            params: { 
+                options: this.options 
+            }
+        });
     }
 
     setFrontendOptions(options) {
 
         switch (options.enabled) {
             case false:
-                chrome.browserAction.setBadgeText({ text: 'off' });
+                chrome.action.setBadgeText({ text: 'off' });
                 break;
             case true:
-                chrome.browserAction.setBadgeText({ text: '' });
+                chrome.action.setBadgeText({ text: '' });
                 break;
         }
-        this.tabInvokeAll('setFrontendOptions', {
-            options
+        this.tabInvokeAll({
+            action:'setFrontendOptions',
+            params: {
+                options
+            }
         });
     }
 
@@ -68,17 +72,18 @@ class ODHBack {
         // NOP
     }
 
-    tabInvokeAll(action, params) {
+    tabInvokeAll(request) {
         chrome.tabs.query({}, (tabs) => {
             for (let tab of tabs) {
-                this.tabInvoke(tab.id, action, params);
+                this.tabInvoke(tab.id, request);
             }
         });
     }
 
-    tabInvoke(tabId, action, params) {
+    tabInvoke(tabId, request) {
         const callback = () => this.checkLastError(chrome.runtime.lastError);
-        chrome.tabs.sendMessage(tabId, { action, params }, callback);
+        request.target = "frontend"
+        chrome.tabs.sendMessage(tabId, request, callback);
     }
 
     formatNote(notedef) {
@@ -121,7 +126,11 @@ class ODHBack {
 
     // Message Hub and Handler start from here ...
     onMessage(request, sender, callback) {
-        const { action, params } = request;
+        const { action, params, target} = request;
+
+        if (target != 'serviceworker')
+            return;
+
         const method = this['api_' + action];
 
         if (typeof(method) === 'function') {
@@ -131,64 +140,49 @@ class ODHBack {
         return true;
     }
 
-    onSandboxMessage(e) {
-        const {
-            action,
-            params
-        } = e.data;
-        const method = this['api_' + action];
-        if (typeof(method) === 'function')
-            method.call(this, params);
-
-    }
-
-    async api_initBackend(params) {
-        let options = await optionsLoad();
-        this.ankiweb.initConnection(options);
-
-        //to do: will remove it late after all users migrate to new version.
-        if (options.dictLibrary) { // to migrate legacy scripts list to new list.
-            options.sysscripts = options.dictLibrary;
-            options.dictLibrary = '';
+    async sendtoBackground(request){
+        request.target='background';
+        try {
+            const result =  await chrome.runtime.sendMessage(request);
+            return result;
+        } catch (e) {
+            return null
         }
-        this.opt_optionsChanged(options);
     }
 
+    // sandbox message handler
     async api_Fetch(params) {
-        let { url, callbackId } = params;
+        let { url, callback } = params;
 
-        let request = {
-            url,
-            type: 'GET',
-            dataType: 'text',
-            timeout: 3000,
-            error: (xhr, status, error) => this.callback(null, callbackId),
-            success: (data, status) => this.callback(data, callbackId)
-        };
-        $.ajax(request);
+        try {
+        const response = await fetch(url);
+        if (!response.ok) {
+            throw new Error(`Response status: ${response.status}`);
+        }
+    
+        const text = await response.text();
+        callback(text);
+        } catch (e) {
+        callback(null);
+        }
     }
 
     async api_Deinflect(params) {
-        let { word, callbackId } = params;
-        this.callback(this.deinflector.deinflect(word), callbackId);
+        let { word, callback } = params;
+        callback(this.deinflector.deinflect(word));
     }
 
     async api_getBuiltin(params) {
-        let { dict, word, callbackId } = params;
-        this.callback(this.builtin.findTerm(dict, word), callbackId);
+        let { dict, word, callback } = params;
+        callback(this.builtin.findTerm(dict, word));
     }
 
     async api_getLocale(params) {
-        let { callbackId } = params;
-        this.callback(chrome.i18n.getUILanguage(), callbackId);
+        let { callback } = params;
+        callback(chrome.i18n.getUILanguage());
     }
 
-    // front end message handler
-    async api_isConnected(params) {
-        let callback = params.callback;
-        callback(await this.opt_getVersion());
-    }
-
+    // Frontend API
     async api_getTranslation(params) {
         let { expression, callback } = params;
 
@@ -201,7 +195,6 @@ class ODHBack {
             let result = await this.findTerm(expression);
             callback(result);
         } catch (err) {
-            console.error(err);
             callback(null);
         }
     }
@@ -221,25 +214,17 @@ class ODHBack {
 
     async api_playAudio(params) {
         let { url, callback } = params;
-        
-        for (let key in this.audios) {
-            this.audios[key].pause();
-        }
 
         try {
-            const audio = this.audios[url] || new Audio(url);
-            audio.currentTime = 0;
-            audio.play();
-            this.audios[url] = audio;
-            callback(true);
+            let result = await this.playAudio(url);
+            callback(result);
         } catch (err) {
-            console.error(err);
             callback(null);
         }
     }
 
     // Option page and Brower Action page requests handlers.
-    async opt_optionsChanged(options) {
+    async optionsChanged(options) {
         this.setFrontendOptions(options);
 
         switch (options.services) {
@@ -249,9 +234,9 @@ class ODHBack {
             case 'ankiconnect':
                 this.target = this.ankiconnect;
                 break;
-            case 'ankiweb':
-                this.target = this.ankiweb;
-                break;
+            //case 'ankiweb':
+            //    this.target = this.ankiweb;
+            //    break;
             default:
                 this.target = null;
         }
@@ -272,27 +257,42 @@ class ODHBack {
         }
         await this.setScriptsOptions(this.options);
         optionsSave(this.options);
-        return this.options;
     }
 
-
-    async opt_getDeckNames() {
-        return this.target ? await this.target.getDeckNames() : null;
+    // Option pages API
+    async api_initBackend(params) {
+        let options = await optionsLoad();
+        //this.ankiweb.initConnection(options);
+        await this.optionsChanged(options);
     }
 
-    async opt_getModelNames() {
-        return this.target ? await this.target.getModelNames() : null;
+    async api_optionsChanged(params) {
+        let { options, callback } = params;
+        await this.optionsChanged(options);
+        callback(this.options);
     }
 
-    async opt_getModelFieldNames(modelName) {
-        return this.target ? await this.target.getModelFieldNames(modelName) : null;
+    async api_getDeckNames(params) {
+        let { callback } = params;
+        callback(this.target ? await this.target.getDeckNames() : null);
     }
 
-    async opt_getVersion() {
-        return this.target ? await this.target.getVersion() : null;
+    async api_getModelNames(params) {
+        let { callback } = params;
+        callback(this.target ? await this.target.getModelNames() : null);
     }
 
-    // Sandbox communication start here
+    async api_getModelFieldNames(params) {
+        let { modelName, callback } = params;
+        callback(this.target ? await this.target.getModelFieldNames(modelName) : null);
+    }
+
+    async api_getVersion(params) {
+        let { callback } = params;
+        callback(this.target ? await this.target.getVersion() : null);
+    }
+
+    // Sandbox API
     async loadScripts(list) {
         let promises = list.map((name) => this.loadScript(name));
         let results = await Promise.all(promises);
@@ -300,28 +300,33 @@ class ODHBack {
     }
 
     async loadScript(name) {
-        return new Promise((resolve, reject) => {
-            this.agent.postMessage('loadScript', { name }, result => resolve(result));
-        });
+        return await this.sendtoBackground({action:'loadScript', params:{name}});
     }
 
     async setScriptsOptions(options) {
-        return new Promise((resolve, reject) => {
-            this.agent.postMessage('setScriptsOptions', { options }, result => resolve(result));
-        });
+        return await this.sendtoBackground({action:'setScriptsOptions', params:{options}});
     }
 
     async findTerm(expression) {
-        return new Promise((resolve, reject) => {
-            this.agent.postMessage('findTerm', { expression }, result => resolve(result));
-        });
+        return await this.sendtoBackground({action:'findTerm', params:{expression}});
     }
 
-    callback(data, callbackId) {
-        this.agent.postMessage('callback', { data, callbackId });
+    async playAudio(url) {
+        return await this.sendtoBackground({action:'playAudio', params:{url}});
     }
-
-
 }
 
-window.odhback = new ODHBack();
+importScripts('ankiconnect.js');
+importScripts('builtin.js');
+importScripts('deinflector.js');
+importScripts('utils.js');
+importScripts('agent.js');
+
+setupOffscreenDocument('/bg/background.html');
+odh_serviceworker = new ODHServiceworker();
+
+// according to woxxom's reply on below stackoverflow discussion
+// https://stackoverflow.com/questions/66618136/persistent-service-worker-in-chrome-extension
+const keepAlive = () => setInterval(chrome.runtime.getPlatformInfo, 20e3);
+chrome.runtime.onStartup.addListener(keepAlive);
+keepAlive();

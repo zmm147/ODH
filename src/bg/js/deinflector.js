@@ -1,6 +1,6 @@
 class Deinflector {
     constructor() {
-        this.path = 'data/wordforms.json';
+        this.path = '/bg/data/wordforms.json';
         this.wordforms = null;
     }
 
@@ -13,17 +13,14 @@ class Deinflector {
     }
 
     static async loadData(path) {
-        return new Promise((resolve, reject) => {
-            let request = {
-                url: path,
-                type: 'GET',
-                dataType: 'json',
-                timeout: 5000,
-                error: (xhr, status, error) => reject(error),
-                success: (data, status) => resolve(data)
-            };
-            $.ajax(request);
-        });
+        try {
+            const response = await fetch(path);
+            if (!response.ok) {
+                throw new Error(`Response status: ${response.status}`);
+            }
+            return await response.json();
+        } catch (e) {
+            return null;
+        }
     }
-    
 }

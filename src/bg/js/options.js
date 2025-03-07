@@ -1,15 +1,16 @@
 /* global odhback, localizeHtmlPage, utilAsync, optionsLoad, optionsSave */
+
 async function populateAnkiDeckAndModel(options) {
     let names = [];
     $('#deckname').empty();
-    names = await odhback().opt_getDeckNames();
+    names = await options_api.getDeckNames();
     if (names !== null) {
         names.forEach(name => $('#deckname').append($('<option>', { value: name, text: name })));
     }
     $('#deckname').val(options.deckname);
 
     $('#typename').empty();
-    names = await odhback().opt_getModelNames();
+    names = await options_api.getModelNames();
     if (names !== null) {
         names.forEach(name => $('#typename').append($('<option>', { value: name, text: name })));
     }
@@ -20,7 +21,7 @@ async function populateAnkiFields(options) {
     const modelName = $('#typename').val() || options.typename;
     if (modelName === null) return;
 
-    let names = await odhback().opt_getModelFieldNames(modelName);
+    let names = await options_api.getModelFieldNames(modelName);
     if (names == null) return;
 
     let fields = ['expression', 'reading', 'extrainfo', 'definition', 'definitions', 'sentence', 'url', 'audio'];
@@ -41,7 +42,7 @@ async function updateAnkiStatus(options) {
         $('#user-options').hide();
     }
 
-    let version = await odhback().opt_getVersion();
+    let version = await options_api.getVersion();
     if (version === null) {
         $('#services-status').text(chrome.i18n.getMessage('msgFailed'));
     } else {
@@ -117,9 +118,9 @@ async function onLoginClicked(e) {
         options.password = $('#password').val();
 
         $('#services-status').text(chrome.i18n.getMessage('msgConnecting'));
-        await odhback().ankiweb.initConnection(options, true); // set param forceLogout = true
+        // await options_api.ankiweb.initConnection(options, true); // set param forceLogout = true
 
-        let newOptions = await odhback().opt_optionsChanged(options);
+        let newOptions = await options_api.optionsChanged(options);
         updateAnkiStatus(newOptions);
     }
 }
@@ -128,7 +129,7 @@ async function onServicesChanged(e) {
     if (e.originalEvent) {
         let options = await optionsLoad();
         options.services = $('#services').val();
-        let newOptions = await odhback().opt_optionsChanged(options);
+        let newOptions = await options_api.optionsChanged(options);
         updateAnkiStatus(newOptions);
     }
 }
@@ -165,7 +166,7 @@ async function onSaveClicked(e) {
     options.udfscripts = $('#udfscripts').val();
 
     $('#gif-load').show();
-    let newOptions = await odhback().opt_optionsChanged(options);
+    let newOptions = await options_api.optionsChanged(options);
     $('.gif').hide();
     $('#gif-good').show(1000, () => { $('.gif').hide(); });
 
@@ -227,3 +228,4 @@ async function onReady() {
 }
 
 $(document).ready(utilAsync(onReady));
+options_api = new OptionsAPI();

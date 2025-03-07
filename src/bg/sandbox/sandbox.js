@@ -1,12 +1,13 @@
 /* global api */
 class Sandbox {
     constructor() {
+        this.audios = {};
         this.dicts = {};
         this.current = null;
-        window.addEventListener('message', e => this.onBackendMessage(e));
+        window.addEventListener('message', e => this.onBackgroundMessage(e));
     }
 
-    onBackendMessage(e) {
+    onBackgroundMessage(e) {
         const { action, params } = e.data;
         const method = this['backend_' + action];
         if (typeof(method) === 'function') {

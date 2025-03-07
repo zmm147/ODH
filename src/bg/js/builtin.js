@@ -4,7 +4,7 @@ class Builtin {
     }
 
     async loadData() {
-        this.dicts['collins'] = await Builtin.loadData('data/collins.json');
+        this.dicts['collins'] = await Builtin.loadData('/bg/data/collins.json');
     }
 
     findTerm(dictname, term) {
@@ -13,17 +13,11 @@ class Builtin {
     }
 
     static async loadData(path) {
-        return new Promise((resolve, reject) => {
-            let request = {
-                url: path,
-                type: 'GET',
-                dataType: 'json',
-                timeout: 5000,
-                error: (xhr, status, error) => reject(error),
-                success: (data, status) => resolve(data)
-            };
-            $.ajax(request);
-        });
-    }
-    
+        try {
+            let response = await fetch(path);
+            return await response.json();
+        } catch (error) {
+            return null;
+        }
+    }    
 }

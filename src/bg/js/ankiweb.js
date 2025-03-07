@@ -4,11 +4,13 @@ class Ankiweb {
         this.version = 'web';
         this.id = '';
         this.password = '';
+        /*
         chrome.webRequest.onBeforeSendHeaders.addListener(
             this.rewriteHeader,
             { urls: ['https://ankiweb.net/account/login', 'https://ankiuser.net/edit/save'] },
             ['requestHeaders', 'blocking', 'extraHeaders']
         );
+        */
     }
 
     async initConnection(options, forceLogout = false) {

@@ -1,5 +1,5 @@
 /* global Popup, rangeFromPoint, TextSourceRange, selectedText, isEmpty, getSentence, isConnected, addNote, getTranslation, playAudio, isValidElement*/
-class ODHFront {
+class ODHFrontend {
 
     constructor() {
         this.options = null;
@@ -22,7 +22,7 @@ class ODHFront {
         window.addEventListener('dblclick', e => this.onDoubleClick(e));
         window.addEventListener('keydown', e => this.onKeyDown(e));
 
-        chrome.runtime.onMessage.addListener(this.onBgMessage.bind(this));
+        chrome.runtime.onMessage.addListener(this.onMessage.bind(this));
         window.addEventListener('message', e => this.onFrameMessage(e));
         document.addEventListener('selectionchange', e => this.userSelectionChanged(e));
         //window.addEventListener('selectionend', e => this.onSelectionEnd(e));
@@ -102,15 +102,18 @@ class ODHFront {
         const expression = selectedText();
         if (isEmpty(expression)) return;
 
-        let result = await getTranslation(expression);
+        let result = await frontend_api.getTranslation(expression);
         if (result == null || result.length == 0) return;
         this.notes = this.buildNote(result);
         this.popup.showNextTo({ x: this.point.x, y: this.point.y, }, await this.renderPopup(this.notes));
 
     }
 
-    onBgMessage(request, sender, callback) {
-        const { action, params } = request;
+    onMessage(request, sender, callback) {
+        const { action, params, target } = request;
+        if (target !='frontend')
+            return;
+
         const method = this['api_' + action];
 
         if (typeof(method) === 'function') {
@@ -148,14 +151,14 @@ class ODHFront {
         notedef.definitions = this.notes[nindex].css + this.notes[nindex].definitions.join('<hr>');
         notedef.sentence = context;
         notedef.url = window.location.href;
-        let response = await addNote(notedef);
+        let response = await frontend_api.addNote(notedef);
         this.popup.sendMessage('setActionState', { response, params });
     }
 
     async api_playAudio(params) {
         let { nindex, dindex } = params;
         let url = this.notes[nindex].audios[dindex];
-        let response = await playAudio(url);
+        let response = await frontend_api.playAudio(url);
     }
 
     api_playSound(params) {
@@ -210,7 +213,7 @@ class ODHFront {
         let imageclass = '';
         if (services != 'none') {
             image = (services == 'ankiconnect') ? 'plus.png' : 'cloud.png';
-            imageclass = await isConnected() ? 'class="odh-addnote"' : 'class="odh-addnote-disabled"';
+            imageclass = await frontend_api.isConnected() ? 'class="odh-addnote"' : 'class="odh-addnote-disabled"';
         }
 
         for (const [nindex, note] of notes.entries()) {
@@ -277,4 +280,5 @@ class ODHFront {
     }
 }
 
-window.odhfront = new ODHFront();
+window.odh_frontend = new ODHFrontend();
+window.frontend_api= new FrontendAPI()
