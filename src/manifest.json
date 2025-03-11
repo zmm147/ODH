@@ -55,7 +55,7 @@
                 "fg/img/fail.png",
                 "fg/img/good.png"
             ],
-            "matches": ["*://*/*"]
+            "matches": ["*://*/*", "file://*/*"]
         }
     ],
     "commands": {
