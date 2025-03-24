@@ -155,15 +155,15 @@ class ODHServiceworker {
         let { url, callback } = params;
 
         try {
-        const response = await fetch(url);
-        if (!response.ok) {
-            throw new Error(`Response status: ${response.status}`);
-        }
-    
-        const text = await response.text();
-        callback(text);
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`Response status: ${response.status}`);
+            }
+        
+            const text = await response.text();
+            callback(text);
         } catch (e) {
-        callback(null);
+            callback(null);
         }
     }
 
@@ -180,6 +180,11 @@ class ODHServiceworker {
     async api_getLocale(params) {
         let { callback } = params;
         callback(chrome.i18n.getUILanguage());
+    }
+
+    async api_initBackend(params) {
+        let options = await optionsLoad();
+        await this.optionsChanged(options);
     }
 
     // Frontend API
@@ -234,12 +239,14 @@ class ODHServiceworker {
             case 'ankiconnect':
                 this.target = this.ankiconnect;
                 break;
-            //case 'ankiweb':
-            //    this.target = this.ankiweb;
-            //    break;
+            case 'ankiweb':
+                this.target = this.ankiweb;
+                break;
             default:
                 this.target = null;
         }
+        if (this.target !== null && typeof(this.target.initConnection) === 'function')
+            await this.target.initConnection(options);
 
         let defaultscripts = ['builtin_encn_Collins'];
         let newscripts = `${options.sysscripts},${options.udfscripts}`;
@@ -260,12 +267,6 @@ class ODHServiceworker {
     }
 
     // Option pages API
-    async api_initBackend(params) {
-        let options = await optionsLoad();
-        //this.ankiweb.initConnection(options);
-        await this.optionsChanged(options);
-    }
-
     async api_optionsChanged(params) {
         let { options, callback } = params;
         await this.optionsChanged(options);

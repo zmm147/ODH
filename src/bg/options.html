@@ -102,10 +102,19 @@
                         <select id="services" class="col-2x">
                             <option value="none">None</option>
                             <option value="ankiconnect">Ankiconnect</option>
+                            <!-- option value="ankiconnect">Ankiweb</option -->
                         </select>
                         <label id="services-status">Anki Status</label>
                     </div>
-                    <div id="user-options">
+                    <div id="service-options-ankiconnect" class="service-options">
+                        <hr>
+                        <div class="crosspanel">
+                            <label data-i18n="lblAnkiconnecturl">URL</label>
+                            <input type="text" id="ankiconnecturl" placeholder="http://127.0.0.1:8765" class="col-2x">
+                            <label class="button" id="connect" data-i18n="lblConnect">Connect</label>
+                        </div>
+                    </div>
+                    <div id="service-options-ankiweb" class="service-options">
                         <hr>
                         <div class="crosspanel">
                             <label data-i18n="lblUsername">ID</label>
@@ -116,7 +125,7 @@
                             <label class="button" id="login" data-i18n="lblSignin">Signin</label>
                         </div>
                     </div>
-                    <div id="anki-options">
+                    <div id="service-options-ankiprofile" class="service-options">
                         <hr>
                         <div class="crosspanel">
                             <label data-i18n="lblDeckname">Deck Name</label>

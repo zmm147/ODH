@@ -1,13 +1,19 @@
 class Ankiconnect {
     constructor() {
-        this.version = 6;
+        this.version = null;
+        this.url = 'http://127.0.0.1:8765'; //define default ankiconnect ip/port
+    }
+
+    async initConnection(options) {
+        this.url = options.ankiconnecturl;
+        this.version = await this.ankiInvoke('version', {}, 100);
     }
 
     async ankiInvoke(action, params = {}, timeout = 3000) {
-        let version = this.version;
+        let version = 6;
         let request = { action, version, params };
         try {
-            const rawResponse = await fetch('http://127.0.0.1:8765', {
+            const rawResponse = await fetch(this.url, {
                 method: 'POST',
                 headers: {
                 'Accept': 'application/json',
@@ -56,7 +62,6 @@ class Ankiconnect {
     }
 
     async getVersion() {
-        let version = await this.ankiInvoke('version', {}, 100);
-        return version ? 'ver:' + version : null;
+        return this.version;
     }
 }

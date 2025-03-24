@@ -7,14 +7,18 @@ async function populateAnkiDeckAndModel(options) {
     if (names !== null) {
         names.forEach(name => $('#deckname').append($('<option>', { value: name, text: name })));
     }
-    $('#deckname').val(options.deckname);
+
+    let deckName = options.deckname ? options.deckname : names[0]; 
+    $('#deckname').val(deckName);
 
     $('#typename').empty();
     names = await options_api.getModelNames();
     if (names !== null) {
         names.forEach(name => $('#typename').append($('<option>', { value: name, text: name })));
     }
-    $('#typename').val(options.typename);
+    
+    let typeName = options.typename ? options.typename: names[0];
+    $('#typename').val(typeName);
 }
 
 async function populateAnkiFields(options) {
@@ -33,15 +37,29 @@ async function populateAnkiFields(options) {
     });
 }
 
-async function updateAnkiStatus(options) {
-    $('#services-status').text(chrome.i18n.getMessage('msgConnecting'));
-    $('#anki-options').hide();
-    if (options.services == 'ankiweb')
-        $('#user-options').show();
-    else {
-        $('#user-options').hide();
+async function updateServiceStatus(options) {
+    $('.service-options').hide();
+    $('#services-status').text(chrome.i18n.getMessage('msgFailed'));
+    switch (options.services) {
+        case 'none':
+            break;
+        case 'ankiconnect':
+            $('#service-options-ankiconnect').show();
+            updateAnkiProfile(options) 
+            break;
+        case 'ankiweb':
+            $('#service-options-ankiweb').show();
+            updateAnkiProfile(options) 
+            break;
+        default:
+            break;
     }
+}
 
+async function updateAnkiProfile(options) {
+    $('#service-options-ankiprofile').hide();
+    $('#services-status').text(chrome.i18n.getMessage('msgConnecting'));
+    
     let version = await options_api.getVersion();
     if (version === null) {
         $('#services-status').text(chrome.i18n.getMessage('msgFailed'));
@@ -49,13 +67,12 @@ async function updateAnkiStatus(options) {
         populateAnkiDeckAndModel(options);
         populateAnkiFields(options);
         $('#services-status').text(chrome.i18n.getMessage('msgSuccess', [version]));
-        $('#anki-options').show();
+        $('#service-options-ankiprofile').show();
         if (options.services == 'ankiconnect')
             $('#duplicate-option').show();
         else {
             $('#duplicate-option').hide();
-    }
-
+        }
     }
 }
 
@@ -111,26 +128,17 @@ async function onAnkiTypeChanged(e) {
     }
 }
 
-async function onLoginClicked(e) {
-    if (e.originalEvent) {
-        let options = await optionsLoad();
-        options.id = $('#id').val();
-        options.password = $('#password').val();
-
-        $('#services-status').text(chrome.i18n.getMessage('msgConnecting'));
-        // await options_api.ankiweb.initConnection(options, true); // set param forceLogout = true
-
-        let newOptions = await options_api.optionsChanged(options);
-        updateAnkiStatus(newOptions);
-    }
-}
-
 async function onServicesChanged(e) {
     if (e.originalEvent) {
         let options = await optionsLoad();
+
         options.services = $('#services').val();
+        options.id = $('#id').val();
+        options.password = $('#password').val();
+        options.ankiconnecturl = $('#ankiconnecturl').val();
+
         let newOptions = await options_api.optionsChanged(options);
-        updateAnkiStatus(newOptions);
+        updateServiceStatus(newOptions);
     }
 }
 
@@ -154,6 +162,7 @@ async function onSaveClicked(e) {
     options.id = $('#id').val();
     options.password = $('#password').val();
     
+    options.ankiconnecturl = $('#ankiconnecturl').val();
     options.tags = $('#tags').val();
     options.duplicate = $('#duplicate').val();
 
@@ -200,6 +209,7 @@ async function onReady() {
     $('#id').val(options.id);
     $('#password').val(options.password);
 
+    $('#ankiconnecturl').val(options.ankiconnecturl);
     $('#tags').val(options.tags);
     $('#duplicate').val(options.duplicate);
 
@@ -213,7 +223,8 @@ async function onReady() {
     populateSysScriptsList(options.sysscripts);
     onHiddenClicked();
 
-    $('#login').click(onLoginClicked);
+    $('#connect').click(onServicesChanged);
+    $('#login').click(onServicesChanged);
     $('#saveload').click(onSaveClicked);
     $('#saveclose').click(onSaveClicked);
     $('#close').click(onCloseClicked);
@@ -224,7 +235,7 @@ async function onReady() {
     $('#typename').change(onAnkiTypeChanged);
     $('#services').change(onServicesChanged);
 
-    updateAnkiStatus(options);
+    updateServiceStatus(options);
 }
 
 $(document).ready(utilAsync(onReady));

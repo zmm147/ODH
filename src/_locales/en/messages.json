@@ -32,6 +32,8 @@
     "lblPassword": { "message": "Password" },
     "lblSignup": { "message": "Signup" },
     "lblSignin": { "message": "Signin" },
+    "lblAnkiconnecturl": {"message": "Connect URL"},
+    "lblConnect": {"message": "Connect"},
 
     "msgConnecting": { "message": "Connecting..." },
     "msgFailed": { "message": "Not Connected" },

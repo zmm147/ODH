@@ -6,7 +6,8 @@ async function populateAnkiDeckAndModel(options) {
     if (names !== null) {
         names.forEach(name => $('#deckname').append($('<option>', { value: name, text: name })));
     }
-    $('#deckname').val(options.deckname);
+    let deckName = options.deckname ? options.deckname : names[0]; 
+    $('#deckname').val(deckName);
 }
 
 function populateDictionary(dicts) {
@@ -14,13 +15,26 @@ function populateDictionary(dicts) {
     dicts.forEach(item => $('#dict').append($('<option>', { value: item.objectname, text: item.displayname })));
 }
 
-async function updateAnkiStatus(options) {
+async function updateServiceStatus(options) {
+    $('.service-options').hide();
+    switch (options.services) {
+        case 'none':
+            break;
+        case 'ankiconnect':
+            updateAnkiProfile(options) 
+            break;
+        default:
+            break;
+    }
+}
+
+async function updateAnkiProfile(options) {
     let version = await options_api.getVersion();
     if (version === null) {
-        $('.anki-options').hide();
+        $('#service-options-ankiprofile').hide();
     } else {
         populateAnkiDeckAndModel(options);
-        $('.anki-options').show();
+        $('#service-options-ankiprofile').show();
     }
 }
 
@@ -70,8 +84,7 @@ async function onReady() {
 
     $('#more').click(onMoreOptions);
 
-    $('.anki-options').hide();
-    updateAnkiStatus(options);
+    updateServiceStatus(options);
 
 }
 
