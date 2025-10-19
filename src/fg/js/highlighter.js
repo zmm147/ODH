@@ -17,6 +17,7 @@ class ODHHighlighter {
 
     async init() {
         await this.loadSavedWords();
+        await this.loadOptions();
         this.compile();
         this.injectStyle();
         this.observeMutations();
@@ -29,6 +30,15 @@ class ODHHighlighter {
                 this.refreshHighlights();
             }
         });
+        // Also react to setFrontendOptions messages directly
+        try {
+            chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+                const { action, params, target } = request || {};
+                if (target === 'frontend' && action === 'setFrontendOptions' && params && params.options) {
+                    this.updateOptions(params.options);
+                }
+            });
+        } catch (e) {}
     }
 
     updateOptions(options) {
@@ -69,6 +79,26 @@ class ODHHighlighter {
                     }
                 }
             });
+        });
+    }
+
+    async loadOptions() {
+        return new Promise((resolve) => {
+            try {
+                chrome.storage.local.get(null, (opts) => {
+                    // Only care about our highlight-related fields; fallback to defaults
+                    const options = Object.assign({
+                        highlightEnabled: true,
+                        highlightIncludeVariants: true,
+                        highlightColor: 'rgba(255, 241, 118, 0.8)',
+                        highlightUnderline: true
+                    }, opts || {});
+                    this.updateOptions(options);
+                    resolve();
+                });
+            } catch (e) {
+                resolve();
+            }
         });
     }
 
