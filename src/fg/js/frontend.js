@@ -132,6 +132,9 @@ class ODHFrontend {
         this.activateKey = Number(this.options.hotkey);
         this.maxContext = Number(this.options.maxcontext);
         this.services = options.services;
+        if (window.odh_highlighter && typeof window.odh_highlighter.updateOptions === 'function') {
+            window.odh_highlighter.updateOptions(options);
+        }
         callback();
     }
 

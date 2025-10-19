@@ -17,6 +17,7 @@
             <a href="#" data-contentid="tab-1" class="tabmenu active" data-i18n="tabExtensionTitle">General</a>
             <a href="#" data-contentid="tab-2" class="tabmenu" data-i18n="tabServicesTitle">Anki</a>
             <a href="#" data-contentid="tab-3" class="tabmenu" data-i18n="tabScriptsTitle">Scripts</a>
+            <a href="#" data-contentid="tab-4" class="tabmenu">Highlight</a>
         </div>
 
         <form>
@@ -200,6 +201,49 @@
                         <div class="scriptlistwrapper">
                             <div id="scriptslistbody" class="sl-body"></div>
                         </div>
+                    </div>
+                </div>
+            </div>
+            <div id="tab-4" class="tabcontent" style="display:none">
+                <div class="grouppanel">
+                    <div class="grouptitle">
+                        <span>Highlight Saved Words</span>
+                    </div>
+                    <div class="leftpanel">
+                        <label>Enable Highlight</label>
+                        <div class="enabled">
+                            <input type="checkbox" value=true id="highlight-enabled">
+                            <label for="highlight-enabled"></label>
+                        </div>
+                        <label>Include Inflections</label>
+                        <div class="enabled">
+                            <input type="checkbox" value=true id="highlight-variants">
+                            <label for="highlight-variants"></label>
+                        </div>
+                    </div>
+                    <div class="rightpanel">
+                        <label>Highlight Color</label>
+                        <input type="color" id="highlight-color" value="#fff176">
+                        <label>Storage</label>
+                        <select id="highlight-storage">
+                            <option value="local">local</option>
+                            <option value="sync">sync</option>
+                        </select>
+                    </div>
+                    <div class="clearfix"></div>
+                </div>
+                <div class="grouppanel">
+                    <div class="grouptitle">
+                        <span>Saved Words</span>
+                        <span class="option-helps"><a href="#" id="export-saved">Export</a></span>
+                    </div>
+                    <div class="crosspanel">
+                        <div id="saved-words-list" style="max-height:200px; overflow:auto; border:1px solid #ddd; padding:6px"></div>
+                    </div>
+                    <hr>
+                    <div class="crosspanel">
+                        <label class="button" id="import-anki">Import from Anki (once)</label>
+                        <label class="button" id="clear-saved">Clear All</label>
                     </div>
                 </div>
             </div>

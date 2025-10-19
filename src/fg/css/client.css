@@ -10,4 +10,11 @@ iframe#odh-popup {
     visibility: hidden;
     width: 400px;
     z-index: 2147483647;
-}  
+}
+
+/* Highlight style for saved words */
+span.odh-highlight {
+    background-color: rgba(255, 241, 118, 0.8); /* default light yellow */
+    text-decoration: underline;
+    text-decoration-color: rgba(0,0,0,0.15);
+}

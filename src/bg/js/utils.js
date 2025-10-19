@@ -30,6 +30,13 @@ function sanitizeOptions(options) {
 
         dictSelected: '',
         dictNamelist: [],
+
+        // Highlighter options
+        highlightEnabled: true,
+        highlightIncludeVariants: true,
+        highlightColor: 'rgba(255, 241, 118, 0.8)',
+        highlightUnderline: true,
+        highlightStorage: 'local'
     };
 
     for (const key in defaults) {

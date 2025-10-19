@@ -174,6 +174,14 @@ async function onSaveClicked(e) {
     options.sysscripts = $('#sysscripts').val();
     options.udfscripts = $('#udfscripts').val();
 
+    // Highlighter options
+    options.highlightEnabled = $('#highlight-enabled').prop('checked');
+    options.highlightIncludeVariants = $('#highlight-variants').prop('checked');
+    // Convert color input (e.g., #fff176) to rgba-like or keep as hex
+    options.highlightColor = $('#highlight-color').val();
+    options.highlightUnderline = true; // keep underline always on for now
+    options.highlightStorage = $('#highlight-storage').val();
+
     $('#gif-load').show();
     let newOptions = await options_api.optionsChanged(options);
     $('.gif').hide();
@@ -223,6 +231,15 @@ async function onReady() {
     populateSysScriptsList(options.sysscripts);
     onHiddenClicked();
 
+    // Highlighter UI
+    $('#highlight-enabled').prop('checked', options.highlightEnabled);
+    $('#highlight-variants').prop('checked', options.highlightIncludeVariants);
+    if (options.highlightColor && /^#/.test(options.highlightColor)) {
+        $('#highlight-color').val(options.highlightColor);
+    }
+    $('#highlight-storage').val(options.highlightStorage);
+    await renderSavedWords();
+
     $('#connect').click(onServicesChanged);
     $('#login').click(onServicesChanged);
     $('#saveload').click(onSaveClicked);
@@ -235,7 +252,40 @@ async function onReady() {
     $('#typename').change(onAnkiTypeChanged);
     $('#services').change(onServicesChanged);
 
+    // Highlight actions
+    $('#import-anki').click(async () => { await options_api.importAnkiWords(); await renderSavedWords(); });
+    $('#export-saved').click(async (e) => {
+        e.preventDefault();
+        const data = await options_api.exportSavedWords();
+        const blob = new Blob([data || ''], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'odhSavedWords.json';
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+    $('#clear-saved').click(async () => { await options_api.setSavedWords({}); await renderSavedWords(); });
+
     updateServiceStatus(options);
+}
+
+async function renderSavedWords(){
+    const list = await options_api.getSavedWords();
+    const container = $('#saved-words-list');
+    container.empty();
+    const entries = Object.values(list || {}).sort((a,b)=> a.lemma.localeCompare(b.lemma));
+    if (!entries.length) { container.append('<div style="color:#888">(empty)</div>'); return; }
+    for (const rec of entries) {
+        const item = $('<span>').css({
+            display:'inline-block', padding:'2px 6px', margin:'2px', border:'1px solid #ddd', borderRadius:'2px', background:'#f9f9f9'
+        });
+        const text = $('<span>').text(rec.lemma);
+        const del = $('<a href="#">✕</a>').css({ marginLeft:'6px', color:'#c00', textDecoration:'none' });
+        del.on('click', async (e) => { e.preventDefault(); await options_api.deleteSavedWord(rec.lemma); await renderSavedWords(); });
+        item.append(text).append(del);
+        container.append(item);
+    }
 }
 
 $(document).ready(utilAsync(onReady));
