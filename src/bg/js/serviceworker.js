@@ -21,6 +21,13 @@ class ODHServiceworker {
         chrome.tabs.onCreated.addListener((tab) => this.onTabReady(tab.id));
         chrome.tabs.onUpdated.addListener(this.onTabReady.bind(this));
         chrome.commands.onCommand.addListener((command) => this.onCommand(command));
+
+        // Context menu for adding highlights from selection
+        try {
+            chrome.contextMenus.onClicked.addListener((info, tab) => this.onContextMenuClicked(info, tab));
+        } catch (e) {
+            // ignore if contextMenus permission not available
+        }
     }
 
     onCommand(command) {
@@ -31,6 +38,18 @@ class ODHServiceworker {
     }
 
     onInstalled(details) {
+        try {
+            chrome.contextMenus.removeAll(() => {
+                chrome.contextMenus.create({
+                    id: 'odh-highlight-add',
+                    title: 'ODH: Highlight selected text',
+                    contexts: ['selection']
+                });
+            });
+        } catch (e) {
+            // ignore if permission missing
+        }
+
         if (details.reason === 'install') {
             chrome.tabs.create({ url: chrome.runtime.getURL('bg/guide.html') });
             return;
@@ -210,6 +229,11 @@ class ODHServiceworker {
         const note = this.formatNote(notedef);
         try {
             let result = await this.target.addNote(note);
+            if (result !== null && notedef && notedef.expression) {
+                try {
+                    await this.upsertSavedWord(notedef.expression, { lang: 'en', sourceDict: this.options ? this.options.dictSelected : undefined, noteId: result });
+                } catch (e) {}
+            }
             callback(result);
         } catch (err) {
             console.error(err);
@@ -315,7 +339,138 @@ class ODHServiceworker {
     async playAudio(url) {
         return await this.sendtoBackground({action:'playAudio', params:{url}});
     }
-}
+
+    // ===================== Saved Words & Highlighter support =====================
+    getStorageArea() {
+        const useSync = this.options && this.options.highlightStorage === 'sync' && chrome.storage.sync;
+        return useSync ? chrome.storage.sync : chrome.storage.local;
+    }
+
+    async readSavedWords() {
+        const area = this.getStorageArea();
+        return new Promise((resolve) => {
+            try {
+                area.get(['odhSavedWords'], (data) => {
+                    resolve(data && data.odhSavedWords ? data.odhSavedWords : {});
+                });
+            } catch (e) {
+                resolve({});
+            }
+        });
+    }
+
+    async writeSavedWords(map) {
+        const area = this.getStorageArea();
+        return new Promise((resolve) => {
+            try {
+                area.set({ odhSavedWords: map }, () => resolve(true));
+            } catch (e) {
+                resolve(false);
+            }
+        });
+    }
+
+    englishForms(lemma) {
+        const w = String(lemma).toLowerCase();
+        const forms = new Set([w]);
+        // Plural / 3rd person
+        if (/[^aeiou]y$/.test(w)) forms.add(w.replace(/y$/, 'ies'));
+        if (/(s|x|z|ch|sh)$/.test(w)) forms.add(w + 'es'); else forms.add(w + 's');
+        // Past tense
+        if (/e$/.test(w)) forms.add(w + 'd'); else forms.add(w + 'ed');
+        // Gerund
+        if (/ie$/.test(w)) forms.add(w.replace(/ie$/, 'ying'));
+        else if (/e$/.test(w) && !/(ee|ye|oe)$/.test(w)) forms.add(w.slice(0, -1) + 'ing');
+        else forms.add(w + 'ing');
+        return Array.from(forms);
+    }
+
+    async upsertSavedWord(expression, meta = {}) {
+        const lemma = String(expression || '').trim().toLowerCase();
+        if (!lemma) return false;
+        const map = await this.readSavedWords();
+        const now = Date.now();
+        const current = map[lemma] || { lemma, forms: [], lang: meta.lang || 'en', addedAt: now };
+        // generate forms
+        try {
+            const forms = this.englishForms(lemma);
+            current.forms = Array.from(new Set([...(current.forms || []), ...forms]));
+        } catch (e) {
+            // ignore
+        }
+        current.addedAt = current.addedAt || now;
+        if (meta.sourceDict) current.sourceDict = meta.sourceDict;
+        if (meta.noteId) current.noteId = meta.noteId;
+        map[lemma] = current;
+        await this.writeSavedWords(map);
+        return true;
+    }
+
+    async onContextMenuClicked(info, tab) {
+        if (!info || info.menuItemId !== 'odh-highlight-add') return;
+        const text = (info.selectionText || '').trim();
+        if (!text) return;
+        await this.upsertSavedWord(text, { lang: 'en', sourceDict: 'context' });
+    }
+
+    // ============== APIs for options/UI ==============
+    async api_getSavedWords(params) {
+        const { callback } = params;
+        const data = await this.readSavedWords();
+        callback(data);
+    }
+
+    async api_setSavedWords(params) {
+        const { data, callback } = params;
+        await this.writeSavedWords(data || {});
+        callback(true);
+    }
+
+    async api_deleteSavedWord(params) {
+        const { lemma, callback } = params;
+        const map = await this.readSavedWords();
+        if (lemma && map[lemma]) delete map[lemma];
+        await this.writeSavedWords(map);
+        callback(true);
+    }
+
+    async api_importAnkiWords(params) {
+        const { callback } = params;
+        try {
+            if (!this.ankiconnect) { callback(null); return; }
+            const deckName = this.options && this.options.deckname ? this.options.deckname : null;
+            const typeName = this.options && this.options.typename ? this.options.typename : null;
+            const exprField = this.options && this.options.expression ? this.options.expression : null;
+            let query = '';
+            if (deckName) query += `deck:${deckName}`;
+            if (typeName) query += (query ? ' ' : '') + `note:${typeName}`;
+            const ids = await this.ankiconnect.ankiInvoke('findNotes', { query });
+            if (!ids || !ids.length) { callback(0); return; }
+            const infos = await this.ankiconnect.ankiInvoke('notesInfo', { notes: ids });
+            let count = 0;
+            for (const info of (infos || [])) {
+                let expr = null;
+                if (info && info.fields && exprField && info.fields[exprField]) {
+                    expr = info.fields[exprField].value;
+                }
+                if (!expr) continue;
+                expr = String(expr).replace(/<[^>]*>/g, ' ').trim();
+                if (!expr) continue;
+                const ok = await this.upsertSavedWord(expr, { lang: 'en', sourceDict: 'anki', noteId: info.noteId || info.id });
+                if (ok) count++;
+            }
+            callback(count);
+        } catch (e) {
+            callback(null);
+        }
+    }
+
+    async api_exportSavedWords(params) {
+        const { callback } = params;
+        const data = await this.readSavedWords();
+        callback(JSON.stringify(data));
+    }
+    }
 
 importScripts('ankiconnect.js');
 importScripts('builtin.js');

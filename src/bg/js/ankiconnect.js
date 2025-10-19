@@ -61,6 +61,14 @@ class Ankiconnect {
         return await this.ankiInvoke('modelFieldNames', { modelName });
     }
 
+    async findNotes(query) {
+        return await this.ankiInvoke('findNotes', { query });
+    }
+
+    async notesInfo(notes) {
+        return await this.ankiInvoke('notesInfo', { notes });
+    }
+
     async getVersion() {
         return this.version;
     }
